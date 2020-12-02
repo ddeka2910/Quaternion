@@ -87,7 +87,65 @@ matrix:
     after_success:
     - _cmake_build --target image
     - mv -v build/quaternion.dmg "quaternion-$VERSION.dmg"
+    #powerjobs
+  - os: linux
+    arch: ppc64le
+    compiler: gcc
+    addons:
+      apt:
+        sources:
+        - sourceline: 'ppa:beineri/opt-qt-5.14.2-bionic'
+        packages:
+        - ninja-build
+        - libgl1-mesa-dev # Forgotten Qt dep
+        - qt514base
+        - qt514imageformats
+        - qt514svg
+        - qt514multimedia
+        - qt514quickcontrols
+        - qt514quickcontrols2
+        - qt514tools
+        - qt514translations
+        - qt5keychain-dev
+        - appstream-util
+    env:
+    - BUILD_APPIMAGE=1
+    - CMAKE_ARGS="$CMAKE_ARGS -DBUILD_SHARED_LIBS=OFF"
+    after_success:
+    # TODO: maybe move AppImage generation to CMakeLists.txt
+    # (pre-wgetting AppImageKit to avoid CMakeList.txt dependency on Internet?)
+    # FIXME: The AppImageKit downloadables should at the very least be verified
+    - mkdir AppImageKit && pushd AppImageKit
+    - |
+      wget -c -nv \
+        "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage" \
+        "https://github.com/darealshinji/AppImageKit-checkrt/releases/download/continuous/exec-x86_64.so" \
+        "https://github.com/darealshinji/AppImageKit-checkrt/releases/download/continuous/AppRun-patched-x86_64"
+    - chmod a+x ./linuxdeployqt-continuous-x86_64.AppImage
+    - install -D -m "u=rw,go=r" -t $DESTDIR/usr/optional/libstdc++ /usr/lib/x86_64-linux-gnu/libstdc++.so.6
+    - install -D -m "u=rw,go=r" ./exec*.so $DESTDIR/usr/optional/exec.so
+    - install -m "u=rwx,go=rx" ./AppRun* $DESTDIR/AppRun
+    - unset QTDIR QT_PLUGIN_PATH LD_LIBRARY_PATH
+    - |
+      ./linuxdeployqt-continuous-x86_64.AppImage \
+        $DESTDIR/usr/share/applications/*.desktop -appimage \
+        -extra-plugins=iconengines,platformthemes/libqgtk3.so \
+        -qmldir=$TRAVIS_BUILD_DIR/client/qml -verbose=$DEPLOY_VERBOSITY
+    - popd
 
+  - os: linux
+    arch: ppc64le
+    compiler: clang
+    addons:
+      apt:
+        packages:
+        - ninja-build
+        - qtdeclarative5-dev
+        - qml-module-qtquick-controls
+        - qml-module-qtquick-controls2
+        - qtmultimedia5-dev
+        - qttools5-dev
+        - qt5keychain-dev    
 before_install:
 - if [ -f /opt/qt514/bin/qt514-env.sh ]; then . /opt/qt514/bin/qt514-env.sh; fi
 # VERSION is also used by linuxdeployqt
